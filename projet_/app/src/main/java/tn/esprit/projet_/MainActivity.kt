@@ -8,22 +8,19 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.launch
-import tn.esprit.projet_.api.ApiService
-import tn.esprit.projet_.api.RetrofitInstance
 import tn.esprit.projet_.model.Article
 import tn.esprit.projet_.model.User
-import tn.esprit.projet_.ui.screens.*
 import tn.esprit.projet_.ui.theme.Projet_Theme
 import tn.esprit.projet_.viewmodel.UserViewModel
-import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalContext
-import tn.esprit.projet_.screens.LoginScreen
-
+import tn.esprit.projet_.screens.*
+import tn.esprit.projet_.ui.screens.ChatDetailScreen
+import tn.esprit.projet_.ui.screens.ChatListScreen
+import tn.esprit.projet_.ui.screens.sampleChatMessages
+import tn.esprit.projet_.ui.screens.sampleDoctors
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -31,61 +28,62 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         val userViewModel = ViewModelProvider(this)[UserViewModel::class.java]
+        userViewModel.initialize(this)
 
         setContent {
             Projet_Theme {
-                var currentScreen by remember { mutableStateOf("login") }
+                var currentScreen by remember { mutableStateOf("home") }
                 var currentUser by remember { mutableStateOf(User("", "", "", "", "", "", 1)) }
+                var selectedArticle by remember { mutableStateOf<Article?>(null) }
 
                 // Sample articles data
                 val sampleArticles = listOf(
                     Article(1, "Article 1", "Short description of Article 1", "Full content of Article 1.", R.drawable.health_meddd, null),
-                    Article(2, "Article 2", "Short description of Article 2", "Full content of Article 2.", null, "https://via.placeholder.com/150")
+                    Article(2, "Article 2", "Short description of Article 2", "Full content of Article 2.", R.drawable.health_medd, null),
+                    Article(3, "Article 3", "Short description of Article 3", "Full content of Article 3.", R.drawable.health_med, null),
+                    Article(4, "Article 4", "Short description of Article 4", "Full content of Article 1.", R.drawable.health_meddd, null),
+                    Article(5, "Article 5", "Short description of Article 5", "Full content of Article 2.", R.drawable.health_medd, null),
+                    Article(6, "Article 6", "Short description of Article 6", "Full content of Article 3.", R.drawable.health_med, null),
                 )
-
 
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     when (currentScreen) {
                         "login" -> LoginScreen(
                             onRegisterClick = { currentScreen = "register" },
                             onForgotPasswordClick = { currentScreen = "forgot_password" },
-                            onLoginSuccess = { response ->
-                                println("Login successful! UserId: ${response.userId}")
-                                currentScreen = "home" // Set screen to home immediately after login
-
-                                // Fetch user details
-                                userViewModel.fetchUserDetails(response.userId) { user ->
-                                    user?.let {
-                                        println("User details fetched: $user")
-                                        currentUser = it
-                                        Toast.makeText(
-                                            this@MainActivity,
-                                            "Welcome ${it.username}!",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    } ?: run {
-                                        println("Failed to fetch user details")
-                                        Toast.makeText(
-                                            this@MainActivity,
-                                            "Failed to fetch user details.",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
+                            onLoginSuccess = { loginResponse ->
+                                currentScreen = "home"
+                                userViewModel.fetchUserDetails(loginResponse.userId) { user ->
+                                    if (user != null) {
+                                        currentUser = user
                                     }
                                 }
                             },
-                            modifier = Modifier.padding(innerPadding),
                             userViewModel = userViewModel
                         )
-                        "home" -> HomeScreen(
-                            onProfileClick = { currentScreen = "profile" },
-                            onLogoutClick = { currentScreen = "login" },
-                            onCameraClick = { currentScreen = "camera" },
-                            onHomeClick = { currentScreen = "home" },
-                            onNotificationClick = { currentScreen = "notification" },
-                            onChatClick = { currentScreen = "chat" },
-                            onArticlesClick = { currentScreen = "articles" },
-                            modifier = Modifier.padding(innerPadding)
-                        )
+
+                        "home" -> {
+                            if (selectedArticle == null) {
+                                HomeScreen(
+                                    articles = sampleArticles,
+                                    onProfileClick = { currentScreen = "profile" },
+                                    onLogoutClick = { currentScreen = "login" },
+                                    onCameraClick = { currentScreen = "camera" },
+                                    onNotificationClick = { currentScreen = "notification" },
+                                    onChatClick = { currentScreen = "chat" },
+                                    onArticleClick = { article -> selectedArticle = article },
+                                    onHomeClick = { currentScreen = "home" },
+                                    modifier = Modifier.padding(innerPadding)
+                                )
+                            } else {
+                                ArticleDetailScreen(
+                                    article = selectedArticle!!,
+                                    onBackClick = { selectedArticle = null },
+                                    modifier = Modifier.padding(innerPadding)
+                                )
+                            }
+                        }
+
                         "camera" -> CameraScreen(
                             onBackClick = { currentScreen = "home" },
                             onScanClick = { /* Handle scan action */ },
@@ -93,42 +91,32 @@ class MainActivity : ComponentActivity() {
                             onCaptureClick = { /* Handle capture action */ },
                             modifier = Modifier.padding(innerPadding)
                         )
+
                         "profile" -> ViewProfileScreen(
                             user = currentUser,
                             onEditClick = { currentScreen = "edit_profile" },
                             modifier = Modifier.padding(innerPadding)
                         )
+
                         "register" -> RegisterScreen(
                             onLoginClick = { currentScreen = "login" },
                             modifier = Modifier.padding(innerPadding)
                         )
+
                         "forgot_password" -> ForgotPasswordScreen(
                             onSendCodeClick = { email -> /* Handle send code action */ },
                             onBackClick = { currentScreen = "login" },
                             modifier = Modifier.padding(innerPadding)
                         )
-                        "view_profile" -> ViewProfileScreen(
-                            user = currentUser,
-                            onEditClick = { currentScreen = "edit_profile" },
-                            modifier = Modifier.padding(innerPadding)
-                        )
+
                         "edit_profile" -> EditProfileScreen(
                             user = currentUser,
-                            onSaveClick = { updatedUser ->
-                                currentUser = updatedUser
-                                currentScreen = "view_profile"
-                            },
+                            onSaveClick = { updatedUser -> currentUser = updatedUser; currentScreen = "profile" },
                             onDeleteClick = { /* Handle delete action */ },
-                            onBackClick = { currentScreen = "view_profile" },
+                            onBackClick = { currentScreen = "profile" },
                             modifier = Modifier.padding(innerPadding)
                         )
-                        "articles" -> ArticleScreen(
-                            articles = sampleArticles,
-                            onArticleClick = { article ->
-                                currentScreen = "article_${article.id}"
-                            },
-                            modifier = Modifier.padding(innerPadding)
-                        )
+
                         "chat" -> ChatListScreen(
                             onProfileClick = { currentScreen = "profile" },
                             onLogoutClick = { currentScreen = "login" },
@@ -136,23 +124,19 @@ class MainActivity : ComponentActivity() {
                             onCameraClick = { currentScreen = "camera" },
                             onNotificationClick = { currentScreen = "notification" },
                             onChatClick = { currentScreen = "chat" },
-                            onArticlesClick = { currentScreen = "articles" },
                             onChatSelected = { doctorId -> currentScreen = "conversation_$doctorId" },
                             modifier = Modifier.padding(innerPadding)
                         )
-                        else -> {
-                            val articleId = currentScreen.removePrefix("article_").toIntOrNull()
-                            if (articleId != null) {
-                                val selectedArticle = sampleArticles.find { it.id == articleId }
-                                if (selectedArticle != null) {
-                                    ArticleDetailScreen(
-                                        article = selectedArticle,
-                                        onBackClick = { currentScreen = "articles" },
-                                        modifier = Modifier.padding(innerPadding)
-                                    )
-                                }
-                            }
-                        }
+
+                        "conversation_1" -> ChatDetailScreen(
+                            doctor = sampleDoctors[0], // Update with actual doctor data
+                            chatMessages = sampleChatMessages,
+                            onBackClick = { currentScreen = "chat" },
+                            onSendMessage = { message -> sampleChatMessages.add(message) },
+                            modifier = Modifier.padding(innerPadding)
+                        )
+
+                        else -> Text(text = "Page not found!", modifier = Modifier.padding(innerPadding))
                     }
                 }
             }

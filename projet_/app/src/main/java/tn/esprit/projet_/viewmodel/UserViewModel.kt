@@ -25,16 +25,7 @@ class UserViewModel : ViewModel() {
         sharedPreferences = context.getSharedPreferences("AuthPrefs", Context.MODE_PRIVATE)
     }
 
-    fun login(
-        loginDto: LoginDto,
-        context: Context,
-        onLoginComplete: (LoginResponse?, String?) -> Unit,
-        onUserFetched: (User?) -> Unit
-    ) {
-        if (!::context.isInitialized) {
-            initialize(context)
-        }
-
+    fun login(loginDto: LoginDto, onResult: (Boolean, String?) -> Unit) {
         viewModelScope.launch {
             try {
                 val apiService = RetrofitInstance.getRetrofit(context).create(ApiService::class.java)
@@ -44,19 +35,13 @@ class UserViewModel : ViewModel() {
                     val loginResponse = response.body()
                     loginResponse?.let {
                         saveTokens(it.accessToken, it.refreshToken)
-                        onLoginComplete(it, null)
-
-                        fetchUserDetails(it.userId) { user ->
-                            onUserFetched(user)
-                        }
-                    } ?: run {
-                        onLoginComplete(null, "Login Failed: No response body")
-                    }
+                        onResult(true, null) // Success
+                    } ?: onResult(false, "Login response is empty")
                 } else {
-                    onLoginComplete(null, "Login Failed: ${response.code()}")
+                    onResult(false, "Login Failed: ${response.message()}")
                 }
             } catch (e: Exception) {
-                onLoginComplete(null, "Connection Error: ${e.message}")
+                onResult(false, "Error: ${e.message}")
             }
         }
     }

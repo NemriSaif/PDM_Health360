@@ -22,8 +22,8 @@ fun LoginScreen(
     userViewModel: UserViewModel
 ) {
     val context = LocalContext.current
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
+    var username by remember { mutableStateOf("") } // Username input
+    var password by remember { mutableStateOf("") } // Password input
     var isLoading by remember { mutableStateOf(false) }
 
     Column(
@@ -33,11 +33,11 @@ fun LoginScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // Email TextField
+        // Username TextField
         OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
-            label = { Text("Email") },
+            value = username,
+            onValueChange = { username = it },
+            label = { Text("Username") },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 8.dp)
@@ -58,40 +58,37 @@ fun LoginScreen(
         Button(
             onClick = {
                 isLoading = true
-                val loginDto = LoginDto(email, password)
-                userViewModel.login(
-                    loginDto = loginDto,
-                    context = context,
-                    onLoginComplete = { response, error ->
-                        isLoading = false
-                        error?.let {
-                            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+                val loginDto = LoginDto(username, password)
+                userViewModel.login(loginDto) { success, error ->
+                    isLoading = false
+                    if (success) {
+                        Toast.makeText(context, "Login Successful!", Toast.LENGTH_SHORT).show()
+                        // Fetch user details after successful login
+                        userViewModel.fetchUserDetails(username) { user ->
+                            if (user != null) {
+                                Toast.makeText(
+                                    context,
+                                    "Welcome ${user.username}!",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                onLoginSuccess(LoginResponse("accessToken", "refreshToken", user._id))
+                            } else {
+                                Toast.makeText(
+                                    context,
+                                    "Failed to fetch user details",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
                         }
-                        response?.let {
-                            onLoginSuccess(it)
-                        }
-                    },
-                    onUserFetched = { user ->
-                        user?.let {
-                            Toast.makeText(
-                                context,
-                                "Welcome ${user.username}!",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        } ?: run {
-                            Toast.makeText(
-                                context,
-                                "Failed to fetch user details",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
+                    } else {
+                        Toast.makeText(context, error ?: "Login failed", Toast.LENGTH_SHORT).show()
                     }
-                )
+                }
             },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 16.dp),
-            enabled = !isLoading && email.isNotBlank() && password.isNotBlank()
+            enabled = !isLoading && username.isNotBlank() && password.isNotBlank()
         ) {
             if (isLoading) {
                 CircularProgressIndicator(

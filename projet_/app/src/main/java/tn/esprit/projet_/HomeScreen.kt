@@ -1,6 +1,7 @@
 package tn.esprit.projet_
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -8,17 +9,21 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import tn.esprit.projet_.model.Article
+import tn.esprit.projet_.ui.screens.ArticleItem
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
+    articles: List<Article>,
     onProfileClick: () -> Unit,
     onLogoutClick: () -> Unit,
     onHomeClick: () -> Unit,
     onCameraClick: () -> Unit,
     onNotificationClick: () -> Unit,
     onChatClick: () -> Unit,
-    onArticlesClick: () -> Unit,
+    onArticleClick: (Article) -> Unit, // For handling article clicks
     modifier: Modifier = Modifier
 ) {
     var showMenu by remember { mutableStateOf(false) }
@@ -103,16 +108,22 @@ fun HomeScreen(
             }
         },
         content = { padding ->
-            Box(
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center
+                    .padding(padding)
             ) {
-                Text(
-                    text = "Welcome to the Home Page!",
-                    style = MaterialTheme.typography.bodyLarge
-                )
+
+                // Display Articles Below
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)
+                ) {
+                    items(articles.size) { index ->
+                        val article = articles[index]
+                        ArticleItem(article = article, onClick = { onArticleClick(article) })
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
             }
         }
     )
