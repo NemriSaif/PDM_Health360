@@ -24,7 +24,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.TextFieldValue
@@ -33,7 +32,6 @@ import tn.esprit.projet_.R
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
-// Data class for Doctor
 data class Doctor(
     val id: Int,
     val name: String,
@@ -47,12 +45,6 @@ val sampleDoctors = listOf(
     Doctor(2, "Dr. Mohamed", R.drawable.doctor_mohamed, "Please remember to take your medication", LocalDateTime.now().minusHours(3)),
     Doctor(3, "Dr. Lina", R.drawable.doctor_lina, "See you at your next appointment", LocalDateTime.now().minusDays(1)),
     Doctor(4, "Dr. Sarah", R.drawable.doctor_sarah, "How are you feeling today?", LocalDateTime.now().minusDays(2)),
-)
-
-val sampleChatMessages = mutableListOf(
-    "Hello, how are you?",
-    "I'm good, thank you! How about you?",
-    "I'm doing great, thanks for asking!"
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -136,12 +128,20 @@ fun ChatListItem(
 @Composable
 fun ChatDetailScreen(
     doctor: Doctor,
-    chatMessages: List<String>,
+    roomId: String, // Added roomId for socket communication
     onBackClick: () -> Unit,
-    onSendMessage: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var message by remember { mutableStateOf(TextFieldValue("")) }
+    var chatMessages by remember { mutableStateOf(mutableListOf<String>()) }
+
+    // Listen to new incoming messages
+    LaunchedEffect(roomId) {
+        // Connect to socket and listen for messages
+        SocketManager.receiveMessage { newMessage ->
+            chatMessages.add(newMessage)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -169,7 +169,8 @@ fun ChatDetailScreen(
                     keyboardActions = KeyboardActions(
                         onSend = {
                             if (message.text.isNotBlank()) {
-                                onSendMessage(message.text)
+                                // Send message through socket
+                                SocketManager.sendMessage(message.text, roomId)
                                 message = TextFieldValue("") // Clear input field after sending
                             }
                         }
@@ -189,7 +190,6 @@ fun ChatDetailScreen(
             ) {
                 items(chatMessages) { message ->
                     ChatMessageItem(message = message, isDoctor = false) // Assuming this is the user's message
-                    // To display the doctor's message, you can pass 'isDoctor' as true.
                     ChatMessageItem(message = message, isDoctor = true) // Sample doctor's message
                 }
             }
@@ -252,4 +252,3 @@ fun ChatMessageItem(message: String, isDoctor: Boolean) {
         }
     }
 }
-

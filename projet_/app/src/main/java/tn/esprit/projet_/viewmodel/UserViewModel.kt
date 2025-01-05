@@ -3,6 +3,8 @@ package tn.esprit.projet_.viewmodel
 import android.content.Context
 import android.content.SharedPreferences
 import android.widget.Toast
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
@@ -10,16 +12,20 @@ import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
 import tn.esprit.projet_.api.ApiService
+import tn.esprit.projet_.api.ForgotPasswordRequest
 import tn.esprit.projet_.api.LoginResponse
 import tn.esprit.projet_.api.RetrofitInstance
+import tn.esprit.projet_.model.CreateRecommendationDto
 import tn.esprit.projet_.model.LoginDto
+import tn.esprit.projet_.model.Recommendation
 import tn.esprit.projet_.model.User
 import tn.esprit.projet_.model.SignupDto
 
 class UserViewModel : ViewModel() {
     private lateinit var context: Context
     private lateinit var sharedPreferences: SharedPreferences
-
+    private val _recommendations = MutableLiveData<List<Recommendation>>()
+    val recommendations: LiveData<List<Recommendation>> = _recommendations
     fun initialize(context: Context) {
         this.context = context
         sharedPreferences = context.getSharedPreferences("AuthPrefs", Context.MODE_PRIVATE)
@@ -46,8 +52,8 @@ class UserViewModel : ViewModel() {
         }
     }
 
-    fun fetchUserDetails(userId: String, onResult: (User?) -> Unit) {
-        println("fetchUserDetails called with userId: $userId")
+    fun fetchUserDetail(userId: String, onResult: (User?) -> Unit) {
+        println("fetchUserDetails called with username: $userId")
 
         val apiService = RetrofitInstance.getRetrofit(context).create(ApiService::class.java)
         val call = apiService.getUserById(userId)
@@ -70,6 +76,44 @@ class UserViewModel : ViewModel() {
             }
         })
     }
+
+
+
+    fun getRecommendations(onResult: (List<Recommendation>?) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val apiService = RetrofitInstance.getRetrofit(context).create(ApiService::class.java)
+                val response = apiService.getRecommendations()
+
+                if (response.isSuccessful) {
+                    onResult(response.body()) // Pass the recommendations to the result callback
+                } else {
+                    onResult(null) // Failure case
+                }
+            } catch (e: Exception) {
+                onResult(null) // Error case
+            }
+        }
+    }
+
+    // Create a new recommendation
+    fun createRecommendation(createRecommendationDto: CreateRecommendationDto, onResult: (Recommendation?) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val apiService = RetrofitInstance.getRetrofit(context).create(ApiService::class.java)
+                val response = apiService.createRecommendation(createRecommendationDto)
+
+                if (response.isSuccessful) {
+                    onResult(response.body()) // Pass the created recommendation to the result callback
+                } else {
+                    onResult(null) // Failure case
+                }
+            } catch (e: Exception) {
+                onResult(null) // Error case
+            }
+        }
+    }
+
     fun signUp(signupData: SignupDto, context: Context, onResult: (User?) -> Unit) {
         viewModelScope.launch {
             RetrofitInstance.getRetrofit(context)
@@ -103,6 +147,23 @@ class UserViewModel : ViewModel() {
                 })
         }
     }
+    fun sendForgotPasswordEmail(email: String, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val apiService = RetrofitInstance.getRetrofit(context).create(ApiService::class.java)
+                val response = apiService.forgotPassword(ForgotPasswordRequest(email))
+                if (response.isSuccessful) {
+                    onResult(true) // Success
+                } else {
+                    onResult(false) // Failure
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                onResult(false) // Error
+            }
+        }
+    }
+
 
     private fun saveTokens(accessToken: String, refreshToken: String) {
         sharedPreferences.edit().apply {

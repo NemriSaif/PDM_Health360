@@ -9,11 +9,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import android.widget.Toast
+import androidx.compose.foundation.Image
 import tn.esprit.projet_.model.LoginDto
 import tn.esprit.projet_.viewmodel.UserViewModel
 import tn.esprit.projet_.api.LoginResponse
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.res.painterResource
+import tn.esprit.projet_.R
 
 @Composable
+
 fun LoginScreen(
     onRegisterClick: () -> Unit,
     onForgotPasswordClick: () -> Unit,
@@ -33,6 +38,17 @@ fun LoginScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
+        // Logo Image
+        val logo: Painter = painterResource(id = R.drawable.logo) // Replace with your logo file
+        Image(
+            painter = logo,
+            contentDescription = "App Logo",
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 24.dp) // Adjust padding as needed
+                .height(120.dp) // Adjust logo height
+        )
+
         // Username TextField
         OutlinedTextField(
             value = username,
@@ -64,14 +80,14 @@ fun LoginScreen(
                     if (success) {
                         Toast.makeText(context, "Login Successful!", Toast.LENGTH_SHORT).show()
                         // Fetch user details after successful login
-                        userViewModel.fetchUserDetails(username) { user ->
+                        userViewModel.fetchUserDetail(username) { user ->
                             if (user != null) {
                                 Toast.makeText(
                                     context,
                                     "Welcome ${user.username}!",
                                     Toast.LENGTH_SHORT
                                 ).show()
-                                onLoginSuccess(LoginResponse("accessToken", "refreshToken", user._id))
+                                onLoginSuccess(LoginResponse("accessToken", "refreshToken", user._id,user.username))
                             } else {
                                 Toast.makeText(
                                     context,

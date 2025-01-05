@@ -13,7 +13,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import tn.esprit.projet_.design_system.MyTextField
 import tn.esprit.projet_.model.User
-
 @Composable
 fun EditProfileScreen(
     user: User,
@@ -22,10 +21,19 @@ fun EditProfileScreen(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // Initialize states with data from the 'user' parameter
     val firstnameState = remember { mutableStateOf(user.firstname) }
     val lastnameState = remember { mutableStateOf(user.lastname) }
     val usernameState = remember { mutableStateOf(user.username) }
     val emailState = remember { mutableStateOf(user.email) }
+
+    // When the 'user' changes, update the state values
+    LaunchedEffect(user) {
+        firstnameState.value = user.firstname
+        lastnameState.value = user.lastname
+        usernameState.value = user.username
+        emailState.value = user.email
+    }
 
     Column(
         modifier = modifier

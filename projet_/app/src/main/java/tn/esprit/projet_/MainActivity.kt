@@ -1,6 +1,7 @@
 package tn.esprit.projet_
 
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -13,15 +14,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModelProvider
 import tn.esprit.projet_.model.Article
+import tn.esprit.projet_.model.Recommendation
 import tn.esprit.projet_.model.User
 import tn.esprit.projet_.ui.theme.Projet_Theme
 import tn.esprit.projet_.viewmodel.UserViewModel
 import tn.esprit.projet_.screens.*
 import tn.esprit.projet_.ui.screens.ChatDetailScreen
 import tn.esprit.projet_.ui.screens.ChatListScreen
-import tn.esprit.projet_.ui.screens.sampleChatMessages
 import tn.esprit.projet_.ui.screens.sampleDoctors
-
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -29,22 +29,36 @@ class MainActivity : ComponentActivity() {
 
         val userViewModel = ViewModelProvider(this)[UserViewModel::class.java]
         userViewModel.initialize(this)
+        val sampleChatMessages = mutableListOf(
+            "Hello, how are you?",
+            "I'm good, thank you! How about you?",
+            "I'm doing great, thanks for asking!"
+        )
 
         setContent {
             Projet_Theme {
-                var currentScreen by remember { mutableStateOf("home") }
-                var currentUser by remember { mutableStateOf(User("", "", "", "", "", "", 1)) }
+                var currentScreen by remember { mutableStateOf("login") }
+                var currentUser by remember { mutableStateOf<User?>(null) }  // Track the current user
                 var selectedArticle by remember { mutableStateOf<Article?>(null) }
 
-                // Sample articles data
-                val sampleArticles = listOf(
-                    Article(1, "Article 1", "Short description of Article 1", "Full content of Article 1.", R.drawable.health_meddd, null),
-                    Article(2, "Article 2", "Short description of Article 2", "Full content of Article 2.", R.drawable.health_medd, null),
-                    Article(3, "Article 3", "Short description of Article 3", "Full content of Article 3.", R.drawable.health_med, null),
-                    Article(4, "Article 4", "Short description of Article 4", "Full content of Article 1.", R.drawable.health_meddd, null),
-                    Article(5, "Article 5", "Short description of Article 5", "Full content of Article 2.", R.drawable.health_medd, null),
-                    Article(6, "Article 6", "Short description of Article 6", "Full content of Article 3.", R.drawable.health_med, null),
-                )
+
+
+                var recommendations by remember { mutableStateOf<List<Recommendation>?>(null) }
+                var isLoading by remember { mutableStateOf(true) }
+                var errorMessage by remember { mutableStateOf<String?>(null) }
+
+
+                if (currentScreen == "home" && recommendations == null) {
+                    userViewModel.getRecommendations { fetchedRecommendations ->
+                        isLoading = false
+                        if (fetchedRecommendations != null) {
+                            recommendations = fetchedRecommendations
+                        } else {
+                            errorMessage = "Failed to load recommendations."
+                        }
+                    }
+                }
+                val onHomeClick: () -> Unit = { currentScreen = "home" }
 
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     when (currentScreen) {
@@ -52,12 +66,20 @@ class MainActivity : ComponentActivity() {
                             onRegisterClick = { currentScreen = "register" },
                             onForgotPasswordClick = { currentScreen = "forgot_password" },
                             onLoginSuccess = { loginResponse ->
-                                currentScreen = "home"
-                                userViewModel.fetchUserDetails(loginResponse.userId) { user ->
+                                Log.d("MainActivity", "Login Response: $loginResponse")
+                                val username = loginResponse.username ?: "Unknown"
+                                Log.d("MainActivity", "Fetched username: $username")
+                                userViewModel.fetchUserDetail(username) { user ->
                                     if (user != null) {
-                                        currentUser = user
+                                        currentUser = user  // Update currentUser with the fetched data
+                                        Log.d("MainActivity", "User details: $user")
+
+                                    } else {
+                                        Toast.makeText(this@MainActivity, "User not found.", Toast.LENGTH_SHORT).show()
                                     }
                                 }
+                                currentScreen = "home"  // Navigate to home screen on successful login
+
                             },
                             userViewModel = userViewModel
                         )
@@ -65,15 +87,19 @@ class MainActivity : ComponentActivity() {
                         "home" -> {
                             if (selectedArticle == null) {
                                 HomeScreen(
-                                    articles = sampleArticles,
+                                    recommendations = recommendations ?: emptyList(), // Pass fetched recommendations
                                     onProfileClick = { currentScreen = "profile" },
-                                    onLogoutClick = { currentScreen = "login" },
+                                    onLogoutClick = { currentUser = null; currentScreen = "login" },
                                     onCameraClick = { currentScreen = "camera" },
                                     onNotificationClick = { currentScreen = "notification" },
                                     onChatClick = { currentScreen = "chat" },
-                                    onArticleClick = { article -> selectedArticle = article },
-                                    onHomeClick = { currentScreen = "home" },
+                                    onRecommendationClick = { recommendation ->
+                                        // Handle recommendation click, open detail screen if needed
+                                    },
+                                    onHomeClick = onHomeClick,
                                     modifier = Modifier.padding(innerPadding)
+                                            , // Pass the onHomeClick function
+
                                 )
                             } else {
                                 ArticleDetailScreen(
@@ -92,11 +118,20 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.padding(innerPadding)
                         )
 
-                        "profile" -> ViewProfileScreen(
-                            user = currentUser,
-                            onEditClick = { currentScreen = "edit_profile" },
-                            modifier = Modifier.padding(innerPadding)
-                        )
+                        "profile" -> {
+                            // Only pass currentUser if it's not null
+                            if (currentUser != null) {
+                                ViewProfileScreen(
+                                    user = currentUser!!,  // Unwrap safely since it's not null
+                                    onEditClick = { currentScreen = "edit_profile" },
+                                    modifier = Modifier.padding(innerPadding)
+                                )
+                            } else {
+                                // If currentUser is null, navigate to login screen
+                                Toast.makeText(this@MainActivity, "Please log in to view profile", Toast.LENGTH_SHORT).show()
+                                currentScreen = "login"
+                            }
+                        }
 
                         "register" -> RegisterScreen(
                             onLoginClick = { currentScreen = "login" },
@@ -104,18 +139,39 @@ class MainActivity : ComponentActivity() {
                         )
 
                         "forgot_password" -> ForgotPasswordScreen(
-                            onSendCodeClick = { email -> /* Handle send code action */ },
+                            onSendCodeClick = { email ->
+                                userViewModel.sendForgotPasswordEmail(email) { success ->
+                                    if (success) {
+                                        Toast.makeText(this@MainActivity, "Password reset email sent.", Toast.LENGTH_SHORT).show()
+                                        currentScreen = "login"  // Navigate to login screen
+                                    } else {
+                                        Toast.makeText(this@MainActivity, "Failed to send reset email. Please try again.", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
                             onBackClick = { currentScreen = "login" },
                             modifier = Modifier.padding(innerPadding)
                         )
 
-                        "edit_profile" -> EditProfileScreen(
-                            user = currentUser,
-                            onSaveClick = { updatedUser -> currentUser = updatedUser; currentScreen = "profile" },
-                            onDeleteClick = { /* Handle delete action */ },
-                            onBackClick = { currentScreen = "profile" },
-                            modifier = Modifier.padding(innerPadding)
-                        )
+                        "edit_profile" -> {
+                            // Only pass currentUser if it's not null
+                            if (currentUser != null) {
+                                EditProfileScreen(
+                                    user = currentUser!!,  // Unwrap safely since it's not null
+                                    onSaveClick = { updatedUser ->
+                                        currentUser = updatedUser // Update the currentUser
+                                        currentScreen = "profile" // Navigate back to profile
+                                    },
+                                    onDeleteClick = { /* Handle delete action */ },
+                                    onBackClick = { currentScreen = "profile" },
+                                    modifier = Modifier.padding(innerPadding)
+                                )
+                            } else {
+                                // If currentUser is null, navigate to login screen
+                                Toast.makeText(this@MainActivity, "Please log in to edit profile", Toast.LENGTH_SHORT).show()
+                                currentScreen = "login"
+                            }
+                        }
 
                         "chat" -> ChatListScreen(
                             onProfileClick = { currentScreen = "profile" },
@@ -128,13 +184,7 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.padding(innerPadding)
                         )
 
-                        "conversation_1" -> ChatDetailScreen(
-                            doctor = sampleDoctors[0], // Update with actual doctor data
-                            chatMessages = sampleChatMessages,
-                            onBackClick = { currentScreen = "chat" },
-                            onSendMessage = { message -> sampleChatMessages.add(message) },
-                            modifier = Modifier.padding(innerPadding)
-                        )
+
 
                         else -> Text(text = "Page not found!", modifier = Modifier.padding(innerPadding))
                     }
