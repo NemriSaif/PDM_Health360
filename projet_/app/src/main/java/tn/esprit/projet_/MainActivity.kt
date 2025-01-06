@@ -1,5 +1,6 @@
 package tn.esprit.projet_
 
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
@@ -12,6 +13,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import tn.esprit.projet_.model.Article
 import tn.esprit.projet_.model.Recommendation
@@ -21,8 +24,13 @@ import tn.esprit.projet_.viewmodel.UserViewModel
 import tn.esprit.projet_.screens.*
 import tn.esprit.projet_.ui.screens.ChatDetailScreen
 import tn.esprit.projet_.ui.screens.ChatListScreen
+import android.Manifest
+
 import tn.esprit.projet_.ui.screens.sampleDoctors
 class MainActivity : ComponentActivity() {
+    companion object {
+        private const val CAMERA_PERMISSION_CODE = 1001
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -110,13 +118,22 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        "camera" -> CameraScreen(
-                            onBackClick = { currentScreen = "home" },
-                            onScanClick = { /* Handle scan action */ },
-                            onUploadClick = { /* Handle upload action */ },
-                            onCaptureClick = { /* Handle capture action */ },
-                            modifier = Modifier.padding(innerPadding)
-                        )
+                        "camera" -> {
+                            val cameraPermission = Manifest.permission.CAMERA
+                            if (ContextCompat.checkSelfPermission(this, cameraPermission) == PackageManager.PERMISSION_GRANTED) {
+                                CameraScreen(
+                                    onBackClick = { currentScreen = "home" },
+                                    modifier = Modifier.padding(innerPadding)
+                                )
+                            } else {
+                                ActivityCompat.requestPermissions(
+                                    this,
+                                    arrayOf(cameraPermission),
+                                    CAMERA_PERMISSION_CODE
+                                )
+                            }
+                        }
+
 
                         "profile" -> {
                             // Only pass currentUser if it's not null
@@ -189,6 +206,20 @@ class MainActivity : ComponentActivity() {
                         else -> Text(text = "Page not found!", modifier = Modifier.padding(innerPadding))
                     }
                 }
+            }
+        }
+    }
+     override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array< String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions , grantResults)
+        if (requestCode == CAMERA_PERMISSION_CODE) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "Camera permission granted", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Camera permission denied", Toast.LENGTH_SHORT).show()
             }
         }
     }

@@ -6,7 +6,7 @@ import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
-const val BASE_URL = "http://192.168.137.1:3000/"
+const val BASE_URL = "http://10.0.1.20:3000/"
 
 object RetrofitInstance {
     private fun createOkHttpClient(context: Context): OkHttpClient {

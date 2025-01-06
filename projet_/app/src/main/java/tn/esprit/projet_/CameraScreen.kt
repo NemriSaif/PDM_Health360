@@ -1,5 +1,10 @@
 package tn.esprit.projet_
 
+import android.content.Context
+import android.graphics.Bitmap
+import androidx.camera.core.CameraSelector
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -8,44 +13,62 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Camera
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.Text
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CameraScreen(
     onBackClick: () -> Unit,
-    onScanClick: () -> Unit,
-    onUploadClick: () -> Unit,
-    onCaptureClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
+    val previewView = remember { PreviewView(context) }
+    val coroutineScope = rememberCoroutineScope()
+
+    // State for recognized text
+    var recognizedText by remember { mutableStateOf("Point the Scanner at Your Document") }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(text = "Point the Scanner at Your Document", fontSize = 18.sp, color = Color.White) },
+                title = {
+                    Text(
+                        text = "Point the Scanner at Your Document",
+                        fontSize = 18.sp,
+                        color = Color.White
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.smallTopAppBarColors(
                     containerColor = Color(0xFF6A1B9A) // Purple background
-                ),
-                actions = {
-                    Text(
-                        text = "Finish",
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        modifier = Modifier.padding(horizontal = 16.dp)
-                    )
-                }
+                )
             )
         }
     ) { padding ->
@@ -53,28 +76,11 @@ fun CameraScreen(
             modifier = modifier
                 .fillMaxSize()
                 .padding(padding)
-                .background(Color.Black), // Black background as per the screenshot
+                .background(Color.Black),
             verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Thumbnail previews at the top
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.Center
-            ) {
-                repeat(3) {
-                    Box(
-                        modifier = Modifier
-                            .size(60.dp)
-                            .padding(4.dp)
-                            .background(Color.Gray, RoundedCornerShape(8.dp))
-                    )
-                }
-            }
-
-            // Main scanner preview area
+            // Camera Preview
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -83,15 +89,23 @@ fun CameraScreen(
                     .background(Color.DarkGray, RoundedCornerShape(16.dp)),
                 contentAlignment = Alignment.Center
             ) {
+                AndroidView(
+                    factory = { previewView },
+                    modifier = Modifier.fillMaxSize()
+                )
+
                 Text(
-                    text = "Document Preview",
+                    text = recognizedText,
                     color = Color.LightGray,
                     fontSize = 18.sp,
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(16.dp)
                 )
             }
 
-            // Action buttons and center icon
+            // Action buttons
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -105,41 +119,71 @@ fun CameraScreen(
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     Button(
-                        onClick = onScanClick,
+                        onClick = {
+                            coroutineScope.launch {
+                                recognizedText = "Scanning..."
+                                captureAndProcessText(
+                                    context = context,
+                                    previewView = previewView,
+                                    onTextRecognized = { text ->
+                                        recognizedText = text
+                                    }
+                                )
+                            }
+                        },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8E24AA)), // Light Purple
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(text = "Scan", color = Color.White, fontSize = 16.sp)
                     }
-
-                    Spacer(modifier = Modifier.width(16.dp))
-
-                    Box(
-                        modifier = Modifier
-                            .size(70.dp)
-                            .clip(CircleShape)
-                            .background(Color.White), // Middle circular icon
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Camera, // Scanner icon here
-                            contentDescription = "Scan",
-                            tint = Color(0xFF6A1B9A),
-                            modifier = Modifier.size(36.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(16.dp))
-
-                    Button(
-                        onClick = onUploadClick,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8E24AA)), // Light Purple
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(text = "Upload", color = Color.White, fontSize = 16.sp)
-                    }
                 }
             }
         }
     }
+
+    // Initialize Camera
+    LaunchedEffect(cameraProviderFuture) {
+        val cameraProvider = cameraProviderFuture.get()
+        val preview = androidx.camera.core.Preview.Builder().build().also {
+            it.setSurfaceProvider(previewView.surfaceProvider)
+        }
+        val cameraSelector = CameraSelector.Builder()
+            .requireLensFacing(CameraSelector.LENS_FACING_BACK)
+            .build()
+        cameraProvider.unbindAll()
+        cameraProvider.bindToLifecycle(context as androidx.lifecycle.LifecycleOwner, cameraSelector, preview)
+    }
+}
+
+// Capture and process text using ML Kit
+suspend fun captureAndProcessText(
+    context: Context,
+    previewView: PreviewView,
+    onTextRecognized: (String) -> Unit
+) {
+    val bitmap = withContext(Dispatchers.Main) {
+        previewView.bitmap // Access bitmap on the main thread
+    } ?: return onTextRecognized("Failed to capture image.")
+
+    // Convert bitmap to ML Kit InputImage
+    val image = InputImage.fromBitmap(bitmap, 0)
+
+    // Initialize ML Kit Text Recognizer
+    val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+
+    try {
+        // Process the image
+        val result = recognizer.process(image).await()
+        val extractedText = extractTextFromResult(result)
+        onTextRecognized(extractedText)
+    } catch (e: Exception) {
+        e.printStackTrace()
+        onTextRecognized("Error recognizing text.")
+    }
+}
+
+
+// Helper to extract text from ML Kit result
+fun extractTextFromResult(result: Text): String {
+    return result.textBlocks.joinToString("\n") { block -> block.text }
 }
